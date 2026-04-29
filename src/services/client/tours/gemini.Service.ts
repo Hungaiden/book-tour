@@ -2,9 +2,10 @@
 import axios from 'axios'
 
 // eslint-disable-next-line no-undef
-const GEMINI_API_KEY = process.env.API_GEMINI_KEY // <- dán API key ở đây
-// const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${GEMINI_API_KEY}`
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`
+const GROQ_API_KEY = process.env.GROQ_API_KEY
+// eslint-disable-next-line no-undef
+const GROQ_MODEL = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile'
+const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions'
 
 export async function getTourRecommendations(userInput, tours) {
   const prompt = `
@@ -16,16 +17,33 @@ ${JSON.stringify(tours, null, 2)}
 
 Hãy tìm những tour phù hợp nhất với yêu cầu của người dùng. Ưu tiên hàng đầu là các tour có điểm đến (destination) giống với yêu cầu. Sau đó, xét thêm các yếu tố như thời gian đi (duration), ngày khởi hành (startDate), hoặc giá cả nếu cần. Trả lại danh sách các tour phù hợp nhất dưới dạng mảng JSON các id. Không giải thích, không dùng markdown.
 
-["id1", "id2", "id3", ...]
+Ví dụ: ["id1", "id2", "id3"]
 Chỉ trả lại mảng JSON các id, không cần giải thích.
 `
 
   try {
-    const response = await axios.post(GEMINI_URL, {
-      contents: [{ parts: [{ text: prompt }] }],
-    })
+    const response = await axios.post(
+      GROQ_URL,
+      {
+        model: GROQ_MODEL,
+        messages: [
+          {
+            role: 'user',
+            content: prompt,
+          },
+        ],
+        temperature: 0.7,
+        max_tokens: 1024,
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${GROQ_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+      }
+    )
 
-    const rawText = response.data.candidates[0]?.content?.parts[0]?.text
+    const rawText = response.data.choices[0]?.message?.content
     
     // Clean the response text
     const cleanText = rawText
@@ -38,7 +56,7 @@ Chỉ trả lại mảng JSON các id, không cần giải thích.
     return tourIds
 
   } catch (error) {
-    console.error('Gemini API error:', error.message)
+    console.error('Groq API error:', error.message)
     console.error('Raw response:', error.response?.data)
     return []
   }
