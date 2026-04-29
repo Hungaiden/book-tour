@@ -1,57 +1,62 @@
 /* eslint-disable no-undef */
 // middleware này đảm nhiệm việc quan trọng: lấy và xác thực JWT accessToken nhận được phía FE có hợp lệ hay không
-import { JwtProvider } from "../providers/JwtProvider";
-import type { Request, Response, NextFunction } from "express";
+import { JwtProvider } from '../providers/JwtProvider';
+import type { Request, Response, NextFunction } from 'express';
 
 // Extend the Request interface to include jwtDecoded
 declare global {
-    namespace Express {
-        interface Request {
-            jwtDecoded?: any;
-        }
+  namespace Express {
+    interface Request {
+      jwtDecoded?: any;
     }
+  }
 }
-const isAuthorized = async (
-    req: Request,
-    res: Response,
-    next: NextFunction
-) => {
-    console.log("isAuthorized middleware called");
-    // Cách 1: Lấy accessToken nằm trong req cookies phía client - withCridentials trong file authorizeAxios và cridentials trong CORS
-    const accessTokenFromCookies = req.cookies?.accessToken;
-    if (!accessTokenFromCookies) {
-        res.status(401).json({
-            message: "Unauthorized! (Token not found)",
-        });
-        return;
+const isAuthorized = async (req: Request, res: Response, next: NextFunction) => {
+  console.log('isAuthorized middleware called');
+
+  // Cách 1: Lấy accessToken từ cookies
+  let accessToken = req.cookies?.accessToken;
+
+  // Cách 2: Lấy accessToken từ Authorization header (Bearer token)
+  if (!accessToken) {
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      accessToken = authHeader.substring('Bearer '.length);
+    }
+  }
+
+  if (!accessToken) {
+    res.status(401).json({
+      message: 'Unauthorized! (Token not found)',
+    });
+    return;
+  }
+
+  try {
+    // Bước 01: Thực hiện giải mã token xem nó có hợp lệ không
+    const accessTokenDecoded = await JwtProvider.verifyToken(
+      accessToken,
+      process.env.ACCESS_TOKEN_SECRET_SIGNATURE,
+    );
+    // Bước 02: Quan trọng: Nếu như token hợp lệ, cần lưu thông tin giải mã được vào req.jwtDecoded để sử dụng cho các tầng cần xử lý ở phía sau
+    req.jwtDecoded = accessTokenDecoded;
+
+    // Bước 03: Cho phép cái request đi tiếp
+    next();
+  } catch (error) {
+    console.log('Error from authMiddleware', error);
+
+    // TH1: Nếu các accessToken nó bị hết hạn (expired) thì mình cần trả về 1 mã lỗi GONE - 410 cho phía FE biết để gọi api refreshToken
+    if (error.message?.includes('jwt expired')) {
+      res.status(410).json({ message: 'Cần refresh token' });
+      return;
     }
 
-    try {
-        // Bước 01: Thực hiện giải mã token xem nó có hợp lệ khoog
-        const accessTokenDecoded = await JwtProvider.verifyToken(
-            accessTokenFromCookies, // Dung token theo cách 1 ở trên
-            // accessTokenFromHeaders.substring('Bearer '.length), // Dung token theo cach 2 ở trên
-            process.env.ACCESS_TOKEN_SECRET_SIGNATURE
-        );
-        // Bước 02: Quan trọng: Nếu như token hợp lệ, cần lưu thoogn tin giải mã được vào req.jwtDecoded để sử dụng cho các tầng cần xử lý ở phía sau
-        req.jwtDecoded = accessTokenDecoded;
-
-        // Bước 03: Cho phép cái request đi tiếp
-        next();
-    } catch (error) {
-        console.log("Error from authMiddleware", error);
-
-        // TH1: Nếu các accessToken nó bị hết hạn (expired) thì mình cần trả về 1 mã lỗi GONE - 410 cho phía FE biết để gọi api refreshToken
-        if (error.message?.includes("jwt expired")) {
-            res.status(410).json({ message: "Cần refresh token" });
-            return;
-        }
-
-        // Th2: Nếu như accessToken nó k hợp lệ do bất kỳ điều gì khác thì cứ trả về mã 401 cho phía FE xử lý Logout / hoặc gọi API logout tuỳ trường hợp
-        res.status(401).json({ message: "UNAUTHORIZED! Please Login" });
-    }
+    // Th2: Nếu như accessToken nó không hợp lệ do bất kỳ điều gì khác thì cứ trả về mã 401 cho phía FE xử lý Logout / hoặc gọi API logout tuỳ trường hợp
+    res.status(401).json({ message: 'UNAUTHORIZED! Please Login' });
+  }
 };
 
 export const authMiddleware = {
-    isAuthorized,
+  isAuthorized,
 };

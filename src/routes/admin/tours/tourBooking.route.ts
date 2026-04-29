@@ -1,19 +1,21 @@
-import { Router } from "express";
-import { authMiddleware } from "../../../middlewares/auth.middleware";
+import { Router } from 'express';
+import { authMiddleware } from '../../../middlewares/auth.middleware';
 
 const router: Router = Router();
 
-import * as tourBookingController from "../../../controllers/admin/tours/tourBooking.controller";
+import * as tourBookingController from '../../../controllers/admin/tours/tourBooking.controller';
 
-router.post("/create", tourBookingController.createTourBooking);
+router.get('/', tourBookingController.getAllTourBookings);
 
-router.get("/getAll", tourBookingController.getAllTourBookings);
+router.post('/create', tourBookingController.createTourBooking);
 
-router.get("/detail/:bookingId", tourBookingController.getTourBookingById);
+router.get('/getAll', tourBookingController.getAllTourBookings);
 
-router.get("/tour/:tourId", tourBookingController.getBookingsByTourId);
-router.get("/user/:userId", tourBookingController.getBookingsByUserId);
+router.get('/detail/:bookingId', tourBookingController.getTourBookingById);
 
-router.get("/:email", tourBookingController.getBookingsByEmail);
+router.get('/tour/:tourId', tourBookingController.getBookingsByTourId);
+router.get('/user/:userId', tourBookingController.getBookingsByUserId);
+
+router.get('/:email', tourBookingController.getBookingsByEmail);
 
 export const tourBookingRoute: Router = router;
